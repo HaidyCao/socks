@@ -19,15 +19,15 @@ if (ANDROID)
     )
 else ()
     add_definitions(-DSOCKS_SSL)
-
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/${OS}/include)
     add_executable(
-            ssl_socks
+            ssl_socks_local
 
             ssl_socks_local.c
     )
 
     target_link_libraries(
-            ssl_socks
+            ssl_socks_local
 
             libsocks-static
     )
