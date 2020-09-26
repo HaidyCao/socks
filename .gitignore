@@ -1,0 +1,14 @@
+/server
+/*.o
+/.vscode
+*.dSYM
+.DS_Store
+/http_proxy
+/clib
+/*.log
+/local_http_proxy
+/mss
+/mses
+build/
+android_build/
+cmake-build-debug/
