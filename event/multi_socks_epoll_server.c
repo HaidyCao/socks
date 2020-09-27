@@ -52,7 +52,7 @@
 
 #endif
 
-#define EVENT_DEFAULT_READ_BUFFER 8192
+#define EVENT_DEFAULT_READ_BUFFER 10240
 
 void multi_socks_epoll_server_set_log_level(int level) {
     set_log_level(level);
@@ -530,10 +530,10 @@ static void event_read(int fd, MultiSocksBase *base) {
     }
 #endif
 
-    u_char ev_backup = event->ev;
     set_write_disable(event);
-    char buf[EVENT_DEFAULT_READ_BUFFER];
+    static __thread char buf[EVENT_DEFAULT_READ_BUFFER];
     ssize_t n;
+    int err_number = 0;
 
     struct sockaddr_storage addr;
     socklen_t addr_len = sizeof(addr);
@@ -543,16 +543,19 @@ static void event_read(int fd, MultiSocksBase *base) {
             n = SSL_read(event->ssl, buf, EVENT_DEFAULT_READ_BUFFER);
         } else
 #endif
-        if (event->addr) {
-            bzero(&addr, sizeof(addr));
-            n = recvfrom(fd, buf, EVENT_DEFAULT_READ_BUFFER, 0, (struct sockaddr *) &addr, &addr_len);
-            LOGD("read len = %zd from %s", n, sockaddr_to_string((struct sockaddr *) &addr, NULL, 0));
-        } else {
-            n = read(fd, buf, EVENT_DEFAULT_READ_BUFFER);
-            LOGD("read len = %zd", n);
+        {
+            if (event->addr) {
+                bzero(&addr, sizeof(addr));
+                n = recvfrom(fd, buf, EVENT_DEFAULT_READ_BUFFER, 0, (struct sockaddr *) &addr, &addr_len);
+                LOGD("read len = %zd from %s", n, sockaddr_to_string((struct sockaddr *) &addr, NULL, 0));
+            } else {
+                n = read(fd, buf, EVENT_DEFAULT_READ_BUFFER);
+                LOGD("read len = %zd", n);
+            }
         }
 
         if (n <= 0) {
+            err_number = errno;
             break;
         }
 
@@ -587,9 +590,7 @@ static void event_read(int fd, MultiSocksBase *base) {
     }
 
     event = get_event(base, fd);
-    if (event)
-        event->ev = ev_backup;
-    if (n > 0 || (n == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
+    if (n > 0 || (n == -1 && (err_number == EAGAIN || err_number == EWOULDBLOCK))) {
         if (event == NULL)
             return;
         if (event->timeout && event->read_timeout > 0) {
@@ -618,14 +619,17 @@ static void event_read(int fd, MultiSocksBase *base) {
     LOGD("n = %zd, errno = %d, strerror = %s", n, errno, strerror(errno));
     if (event) {
         set_write_disable(event);
-        if (event->in_buffer.length > 0 && event->read_cb)
+        if (event->in_buffer.length > 0 && event->read_cb) {
             event->read_cb(event, event->ctx);
+        }
 
         event = get_event(base, fd);
-        if (event)
-            event_self_close(fd, MULTI_SOCKS_EV_READ | MULTI_SOCKS_EV_EOF, event);
-    } else
+        if (event) {
+            event_self_close(fd, MULTI_SOCKS_EV_READ_AND_EOF, event);
+        }
+    } else {
         close(fd);
+    }
 }
 
 static int event_accept(int fd, MultiSocksBase *base) {
