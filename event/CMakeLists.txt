@@ -105,44 +105,63 @@ if (ANDROID)
 else ()
     message(EVENT_SSL_DISABLE="${EVENT_SSL_DISABLE}")
     if (EVENT_SSL_DISABLE)
-        set(E_SSL "")
-        set(E_CRYPTO "")
+        set(OPENSSL_SSL "")
+        set(OPENSSL_CRYPTO "")
     else ()
         add_definitions("-DEVENT_SSL")
         message("use ssl")
 
-        add_library(ssl STATIC IMPORTED)
-        set_target_properties(
-                ssl
-                PROPERTIES IMPORTED_LOCATION
-                ${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/${OS}/lib/libssl.a
-        )
 
-        add_library(crypto STATIC IMPORTED)
-        set_target_properties(
-                crypto
-                PROPERTIES IMPORTED_LOCATION
-                ${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/${OS}/lib/libcrypto.a
-        )
+        if (CMAKE_HOST_APPLE)
+            find_library(
+                    OPENSSL_SSL
+                    libssl.a
 
-        set(E_SSL "ssl")
-        set(E_CRYPTO "crypto")
+                    /usr/local/opt/openssl@1.1/lib
+            )
+
+            find_library(
+                    OPENSSL_CRYPTO
+                    libcrypto.a
+
+                    /usr/local/opt/openssl@1.1/lib
+            )
+
+            if (NOT ${OPENSSL_SSL} MATCHES /usr/local/opt/openssl@1.1/lib/libssl.a)
+                find_library(
+                        OPENSSL_SSL
+                        libssl.a
+
+                        ${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/${OS}/lib/
+                )
+
+                find_library(
+                        OPENSSL_CRYPTO
+                        libcrypto.a
+
+                        ${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/${OS}/lib/
+                )
+            endif ()
+        endif ()
+
+        message("OPENSSL_SSL: ${OPENSSL_SSL}")
+        message("OPENSSL_CRYPTO: ${OPENSSL_CRYPTO}")
     endif ()
 
     target_link_libraries(
             event
             coll
 
-            ${E_SSL}
-            ${E_CRYPTO}
+            ${OPENSSL_SSL}
+            ${OPENSSL_CRYPTO}
     )
 
     target_link_libraries(
             event-static
             coll-static
 
-            ${E_SSL}
-            ${E_CRYPTO}
+            ${OPENSSL_SSL}
+            ${OPENSSL_CRYPTO}
             pthread
             dl
     )
